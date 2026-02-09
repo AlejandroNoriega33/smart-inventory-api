@@ -1,37 +1,33 @@
 from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, Field
+from fastapi.responses import RedirectResponse  # <--- ESTO ARREGLA TU PROBLEMA DEL 404
+from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from typing import Optional, List
 
-#  1. CONFIGURACIÓN DE BASE DE DATOS (SQL) 
-# Se creará un archivo local 'inventory.db' automáticamente
-SQLALCHEMY_DATABASE_URI = "sqlite:///./inventory.db"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URI, connect_args={"check_same_thread": False})
+# --- CONFIGURACIÓN DE BASE DE DATOS ---
+SQLALCHEMY_DATABASE_URL = "sqlite:///./inventory.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-#  2. MODELOS DE BASE DE DATOS (Tablas SQL) ¨P
-class ProductModel(Base):
+# --- MODELO SQL (TABLA) ---
+class Product(Base):
     __tablename__ = "products"
-
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True, nullable=False)
-    description = Column(String, nullable=True)
-    price = Column(Float, nullable=False)
-    stock = Column(Integer, default=0)
+    name = Column(String, index=True)
+    description = Column(String, default="Sin descripción")
+    price = Column(Float)
+    quantity = Column(Integer)
 
-# Crear las tablas en la BD si no existen
 Base.metadata.create_all(bind=engine)
 
-#  3. ESQUEMAS PYDANTIC (Validación de datos)
+# --- ESQUEMAS PYDANTIC (VALIDACIÓN) ---
 class ProductBase(BaseModel):
-    name: str = Field(..., example="Laptop Gamer", min_length=3)
-    description: Optional[str] = Field(None, example="16GB RAM, 512GB SSD")
-    price: float = Field(..., gt=0, example=1200.50)
-    stock: int = Field(..., ge=0, example=10)
+    name: str
+    description: str | None = None
+    price: float
+    quantity: int
 
 class ProductCreate(ProductBase):
     pass
@@ -39,16 +35,12 @@ class ProductCreate(ProductBase):
 class ProductResponse(ProductBase):
     id: int
     class Config:
-        from_attributes = True # Permite leer desde el modelo ORM
+        orm_mode = True
 
-#  4. CONFIGURACIÓN DE LA APP
-app = FastAPI(
-    title="Smart Inventory API",
-    description="API para gestión de stock desarrollada con Python y SQL.",
-    version="1.0.0"
-)
+# --- INICIALIZAR APP ---
+app = FastAPI(title="Smart Inventory API", version="1.0.0")
 
-# Dependencia para obtener la sesión de BD en cada petición
+# Dependencia para obtener la DB
 def get_db():
     db = SessionLocal()
     try:
@@ -56,54 +48,43 @@ def get_db():
     finally:
         db.close()
 
-#  5. ENDPOINTS (RUTAS)
+# ==========================================
+# 🚀 LA MAGIA: REDIRECCIÓN AUTOMÁTICA
+# ==========================================
+@app.get("/", include_in_schema=False)
+def main():
+    return RedirectResponse(url="/docs")
 
-@app.post("/products/", response_model=ProductResponse, status_code=201)
+# ==========================================
+# 📦 ENDPOINTS (TUS FUNCIONES)
+# ==========================================
+
+@app.post("/products/", response_model=ProductResponse, tags=["Productos"])
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
-    """Crea un nuevo producto en el inventario."""
-    db_product = ProductModel(**product.model_dump())
+    db_product = Product(**product.dict())
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
     return db_product
 
-@app.get("/products/", response_model=List[ProductResponse])
+@app.get("/products/", response_model=list[ProductResponse], tags=["Productos"])
 def read_products(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Obtiene la lista de productos con paginación."""
-    return db.query(ProductModel).offset(skip).limit(limit).all()
+    products = db.query(Product).offset(skip).limit(limit).all()
+    return products
 
-@app.get("/products/{product_id}", response_model=ProductResponse)
+@app.get("/products/{product_id}", response_model=ProductResponse, tags=["Productos"])
 def read_product(product_id: int, db: Session = Depends(get_db)):
-    """Busca un producto específico por su ID."""
-    product = db.query(ProductModel).filter(ProductModel.id == product_id).first()
+    product = db.query(Product).filter(Product.id == product_id).first()
     if product is None:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return product
 
-@app.put("/products/{product_id}", response_model=ProductResponse)
-def update_stock(product_id: int, product_update: ProductCreate, db: Session = Depends(get_db)):
-    """Actualiza la información y el stock de un producto."""
-    db_product = db.query(ProductModel).filter(ProductModel.id == product_id).first()
-    if db_product is None:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    
-    # Actualizamos los campos
-    db_product.name = product_update.name
-    db_product.description = product_update.description
-    db_product.price = product_update.price
-    db_product.stock = product_update.stock
-    
-    db.commit()
-    db.refresh(db_product)
-    return db_product
-
-@app.delete("/products/{product_id}")
+@app.delete("/products/{product_id}", tags=["Productos"])
 def delete_product(product_id: int, db: Session = Depends(get_db)):
-    """Elimina un producto de la base de datos."""
-    db_product = db.query(ProductModel).filter(ProductModel.id == product_id).first()
-    if db_product is None:
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product is None:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     
-    db.delete(db_product)
+    db.delete(product)
     db.commit()
-    return {"detail": "Producto eliminado correctamente"}
+    return {"mensaje": f"Producto {product.name} eliminado correctamente"}
