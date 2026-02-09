@@ -5,7 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Optional, List
 
-# --- 1. CONFIGURACIÓN DE BASE DE DATOS (SQL) ---
+#  1. CONFIGURACIÓN DE BASE DE DATOS (SQL) 
 # Se creará un archivo local 'inventory.db' automáticamente
 SQLALCHEMY_DATABASE_URI = "sqlite:///./inventory.db"
 
@@ -13,7 +13,7 @@ engine = create_engine(SQLALCHEMY_DATABASE_URI, connect_args={"check_same_thread
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- 2. MODELOS DE BASE DE DATOS (Tablas SQL) ---¨P
+#  2. MODELOS DE BASE DE DATOS (Tablas SQL) ¨P
 class ProductModel(Base):
     __tablename__ = "products"
 
@@ -26,7 +26,7 @@ class ProductModel(Base):
 # Crear las tablas en la BD si no existen
 Base.metadata.create_all(bind=engine)
 
-# --- 3. ESQUEMAS PYDANTIC (Validación de datos) ---
+#  3. ESQUEMAS PYDANTIC (Validación de datos)
 class ProductBase(BaseModel):
     name: str = Field(..., example="Laptop Gamer", min_length=3)
     description: Optional[str] = Field(None, example="16GB RAM, 512GB SSD")
@@ -41,7 +41,7 @@ class ProductResponse(ProductBase):
     class Config:
         from_attributes = True # Permite leer desde el modelo ORM
 
-# --- 4. CONFIGURACIÓN DE LA APP ---
+#  4. CONFIGURACIÓN DE LA APP
 app = FastAPI(
     title="Smart Inventory API",
     description="API para gestión de stock desarrollada con Python y SQL.",
@@ -56,7 +56,7 @@ def get_db():
     finally:
         db.close()
 
-# --- 5. ENDPOINTS (RUTAS) ---
+#  5. ENDPOINTS (RUTAS)
 
 @app.post("/products/", response_model=ProductResponse, status_code=201)
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
