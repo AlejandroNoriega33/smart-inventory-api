@@ -1,17 +1,17 @@
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.responses import RedirectResponse  # <--- ESTO ARREGLA TU PROBLEMA DEL 404
+from fastapi.responses import RedirectResponse  # < ESTO ARREGLA TU PROBLEMA DEL 404
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-# --- CONFIGURACIÓN DE BASE DE DATOS ---
+# CONFIGURACIÓN DE BASE DE DATOS 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./inventory.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODELO SQL (TABLA) ---
+# MODELO SQ
 class Product(Base):
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
@@ -22,7 +22,7 @@ class Product(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- ESQUEMAS PYDANTIC (VALIDACIÓN) ---
+#  ESQUEMAS PYDANTIC
 class ProductBase(BaseModel):
     name: str
     description: str | None = None
@@ -37,7 +37,7 @@ class ProductResponse(ProductBase):
     class Config:
         orm_mode = True
 
-# --- INICIALIZAR APP ---
+# INICIALIZAR APP 
 app = FastAPI(title="Smart Inventory API", version="1.0.0")
 
 # Dependencia para obtener la DB
@@ -48,16 +48,13 @@ def get_db():
     finally:
         db.close()
 
-# ==========================================
-# 🚀 LA MAGIA: REDIRECCIÓN AUTOMÁTICA
-# ==========================================
+#  REDIRECCIÓN AUTOMÁTICA
+
 @app.get("/", include_in_schema=False)
 def main():
     return RedirectResponse(url="/docs")
 
-# ==========================================
-# 📦 ENDPOINTS (TUS FUNCIONES)
-# ==========================================
+#  ENDPOINTS
 
 @app.post("/products/", response_model=ProductResponse, tags=["Productos"])
 def create_product(product: ProductCreate, db: Session = Depends(get_db)):
